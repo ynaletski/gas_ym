@@ -2,7 +2,17 @@
 #include<7188xa.h>
 #include<math.h>
 
-#define Max_pnt           4   /*зЁб«® в®зҐЄ гзсв */
+//01.09.2020 YN -----\\//-----
+//int zapret = 0;
+int step =0;
+unsigned char page_clear=2;
+unsigned char page_temporary;
+unsigned char page_str_pass=0;
+unsigned char OK=9;
+unsigned char count_menu=0;
+//------------- -----//\\-----
+
+#define Max_pnt           4   /*число точек учёта*/
 #define Key_0        0x30
 #define Key_1        0x31
 #define Key_2        0x32
@@ -26,17 +36,20 @@
 #define Key_P        0x50
 #define Key_T        0x54
 #define Key_S        0x53
+//01.09.2020 YN -----\\//-----
+#define Key_G        0x47
+//------------- -----//\\-----
 
 #define Key_blank    0x20
 #define Key_dot      0x2e
 #define Key_comma    0x2c
-#define Key_termin    0xd
+#define Key_termin    0xd	//cr
 #define Key_modbus    0xa
 #define Key_mask      0xf
 #define Key_minus    0x2d
 #define Key_dies     0x23
 #define Key_cursor   0x5f
-#define Key_usa      0x24
+#define Key_usa      0x24 //$
 #define Key_adr      0x40
 
 #define Len_name       16
@@ -60,22 +73,55 @@ struct cursor_mmi
 };
 struct display_mmi
 {
-  unsigned char row,         /*бва®Є  ®в 0 ¤® 5*/
-		point,       /*­®¬Ґа ўлЎа ­­®© в®зЄЁ*/
-		flag,        /*ЇаЁ§­ Є ®Ў­®ў«Ґ­Ёп ўлў®¤  бЇЁбЄ  Ё¬с­*/
-		num,         /*­®¬Ґа а иЁаҐ­Ёп ®в 0 ¤® 6*/
-		evt,         /*б®ЎлвЁҐ(ўбҐЈ® ваЁ)*/
-		write,       /*ЇаЁ§­ Є Ё§¬Ґ­Ґ­Ёп Є®­дЁЈга жЁЁ*/
-		prm,         /*­®¬Ґа Ї а ¬Ґва  ў бЇЁбЄҐ ¤Ё­ ¬.Ї а ¬Ґва®ў*/
-		page,        /*бва ­Ёж  ¤ЁбЇ«Ґп*/
-		old,         /*еа ­Ёв бва ­Ёжг ¬Ґ­о ¤«п ў®§ўа в */
-	     suspend;        /*ЇаЁ®бв ­®ўЄ  ®Їа®б  Є« ўЁ в ¤«п ¬Ґ­о*/
+  unsigned char row,         /*строка от 0 до 5*/
+		point,       /*номер выбранной точки*/
+		flag,        /*признак обновления вывода списка имён*/
+		num,         /*номер раширения от 0 до 6*/
+		evt,         /*событие(всего три)*/
+		write,       /*признак изменения конфигурации*/
+		prm,         /*номер параметра в списке динам.параметров*/
+		page,        /*страница дисплея*/
+		old,         /*хранит страницу меню для возврата*/
+	     suspend;        /*приостановка опроса клавиат для меню*/
   int pointer;
   unsigned char arch_num,size;
   unsigned char ret[5],ind_ret;
 };
 struct cursor_mmi             Cursor;
 struct display_mmi            Display;
+//01.09.2020 YN -----\\//-----
+unsigned char *str_page[]=
+{
+	"                              ",
+	"         Главное меню         ", //1+18
+	"    Меню выбора точки учета   ", //2+18
+	"  Меню выбора архивной точки  ", //3+18
+	"     Переменные процесса      ", //4+19
+	"        Ввод значения         ", //5+21
+	" Изменение конфиг. параметра  ", //6+20
+	"         Ввод пароля          ", //7+21
+	"     Неправильный пароль      ", //8+22
+	"   Просмотр архивной точки    ", //9+19
+	"        Меню настроек         ", //10+18
+	"       Выбор значения         ", //11+18
+	"Изменение параметра невозможно", //12+22
+	"Выполн.настр-ка нуля массомера", //13
+	" Внимание! Перекройте расход  ", //14+15+16+23
+	"через массомер, иначе возможен", //15
+	" отказ его работы.            ", //16
+	"     Меню выбора прибора      ", //17+18
+	" F2 Пред, F3 След, Enter, ESC ", //18
+	" F2 Пред, F3 След,        ESC ", //19
+	" F1 Изменение      ESC Отмена ", //20
+	" Enter Ввод        ESC Отмена ", //21
+	"                   ESC Отмена ", //22	
+	" F3 Продолжить       ESC Меню ", //23
+	"    ООО Факом технолоджиз     ", //24+25
+	"                     ESC Меню ", //25
+	"   Вычислитель расхода ВРФ    ", //26+27+25
+	"    Учет природного газа      "  //27
+};
+//------------- -----//\\-----
 unsigned char *str_menu[]={
  "Общие настройки вычислителя",
  "Переменные процесса","Настройки процесса","Архив параметров суточный",
@@ -141,11 +187,11 @@ const char *conf_all[]={
  " "," "," "," "," "," "," "," "," "," "," "," "," "," ",
  "Расход пр час ","К истечения"
  };
-/*[0]-­®¬Ґа Ї а ¬Ґва 
-  [1]- ¤аҐб ЇҐаў®Ј® Ў ©в  Ї а ¬Ґва 
-  [2]-ЇаЁ§­ Є Ї а®«п:1-Ї а®«м ­г¦Ґ­
-  [3]-вЁЇ ¤ ­­ле:0-бва®Є ,1-Ў ©в,2-®¤Ё­.ўлЎ®а,3-¬­®¦.ўлЎ®а,
-      4-ўҐйҐбвў.,5-¤«Ё­.жҐ«®Ґ*/
+/*[0]-номер параметра
+  [1]-адрес первого байта параметра
+  [2]-признак пароля:1-пароль нужен
+  [3]-тип данных:0-строка,1-байт,2-один.выбор,3-множ.выбор,
+      4-веществ.,5-длин.целое*/
 const char *name_mmi_exp[]={
  " "," час"," сутки"," п сут"," месяц", " п мес"," год"};
 const char *units_all[]={
@@ -193,25 +239,41 @@ const char *name_sel_all[]={
 const unsigned char name_mmi_select[Max_mmi_select][Len_select]={
  {0x22,0x31,0x22,0x20},{0x22,0x32,0x22,0x20},{0x22,0x33,0x22,0x20},
  {0x22,0x34,0x22,0x20},{0x22,0x35,0x22,0x20},{0x22,0x36,0x22,0x20},};
-const unsigned char name_arch[Max_name_pnt][6]={{205,229,238,239,240,0x20},/*ЌҐ®Їа*/
- {193,224,231,238,226,Key_dies},/*Ѓ §®ў*/{196,238,239,238,235,237}/*„®Ї®«­*/};
-unsigned char mmi_str[30],Size_str;/* ЎгдҐа Є« ўЁ вгал Ё ¤ЁбЇ«Ґп ваҐвЁ© Ї®ав */
-unsigned char Vertical,Horizont,/*Ї®§ЁжЁп бЁ¬ў®«  8*30 */
-	      mmi_pass,/*­®¬Ґа Їа®е®¤  ЇаЁ ®в®Ўа ¦Ґ­ЁЁ бва®ЄЁ*/
-	      enter_ind,/*ў Є®­дЁЈ:зЁб«® ўў®¤ бЁ¬ў®«®ў*/
-	      mmi_num_sel,/*зЁб«® ўлЎ®а®ў ¤«п Ї а ¬Ґва */
+const unsigned char name_arch[Max_name_pnt][6]={{205,229,238,239,240,0x20},/*Неопр*/
+ {193,224,231,238,226,Key_dies},/*Базов*/{196,238,239,238,235,237}/*Дополн*/};
+unsigned char mmi_str[30],Size_str;/* буфер клавиатуры и дисплея третий порт */
+unsigned char Vertical,Horizont,/*позиция символа 8*30 */
+	      mmi_pass,/*номер прохода при отображении строки*/
+	      enter_ind,/*в конфиг:число ввод символов*/
+	      mmi_num_sel,/*число выборов для параметра*/
 	      mmi_size,mmi_arc_page,flg_init;
 unsigned char mmi_val[6],coord[8],count_smb,flg_modem;
-int mmi_arc;/*гЄ § вҐ«м  аеЁў */
-unsigned mmi_seg,mmi_adr;/*бҐЈ¬Ґ­в Ё  ¤аҐб*/
+int mmi_arc;/*указатель архива*/
+unsigned mmi_seg,mmi_adr;/*сегмент и адрес*/
 extern unsigned char size_max;
 unsigned char mmi_sel[30];
 
+//01.09.2020 YN -----\\//----
+/********* установка строки страницы дисплея ****************************/
+void page_screen(unsigned char hor, unsigned char ver, int str, unsigned char pass)
+{
+	int i;
+	Horizont=hor;Vertical=ver;
+	for (i=0;i<30;i++) mmi_str[i]=str_page[str][i];
+	page_str_pass=pass;
+}
+//------------- -----//\\-----
 
-
-/********* гбв ­®ўЄ  бва ­Ёжл ¤ЁбЇ«Ґп ****************************/
+/********* установка страницы дисплея ****************************/
 void SetDisplayPage (unsigned char page)
-{ Display.evt=1; Display.page=page;}
+{ 
+	Display.evt=1; 
+	//01.09.2020 YN -----\\//-----
+	//Display.page=page;
+	page_temporary=page;
+	Display.page=40;
+	//------------- -----//\\-----
+}
 /*************************/
 void SaveOldPageMMI (void)
 {
@@ -224,24 +286,77 @@ void GoToMenuMMI (unsigned char num_page)
   Display.row=0; Cursor.size=0; SaveOldPageMMI(); Display.num=0;
   Display.suspend=1;SetDisplayPage(num_page);
 }
-/******* д®а¬Ёа®ў ­ЁҐ § Їа®б  ў MMI(Ё­вҐадҐ©б зҐ«®ўҐЄ-¬ иЁ­ )****/
+/******* формирование запроса в MMI(интерфейс человек-машина)****/
 unsigned char SendToMMI (unsigned char typ_port)
 {
   unsigned char count,i,typ_pool;unsigned char buf_mmi[40],cr[2];
-  buf_mmi[0]=Key_usa;buf_mmi[1]=Key_0;buf_mmi[2]=Key_0;
+  buf_mmi[0]=Key_usa;buf_mmi[1]=Key_0;
+  //01.09.2020 YN -----\\//-----
+  buf_mmi[2]=Key_1; //was:Key_0;
+  //------------- -----//\\-----
   switch (Display.evt)
   {
-    case 0:buf_mmi[3]=Key_K;count=4;typ_pool=15;break;/*®Їа®б Є« ўЁ вгал*/
-    case 1:buf_mmi[3]=Key_P;buf_mmi[4]=hex_to_ascii[(Display.page >> 4) & Key_mask];
-	   buf_mmi[5]=hex_to_ascii[Display.page & Key_mask];count=6;
-	   typ_pool=16;Display.evt=0;break;/*гбв ­®ўЄ  бва ­Ёжл ¤ЁбЇ«Ґп*/
-    case 2:buf_mmi[3]=Key_T;buf_mmi[4]=hex_to_ascii[Vertical];
+    case 0:buf_mmi[3]=Key_K;count=4;typ_pool=15;break;/*опрос клавиатуры*/
+    case 1:buf_mmi[3]=Key_P;
+		   //01.09.2020 YN -----\\//-----     //was: вместо page_clear было Display.page
+		   buf_mmi[4]=hex_to_ascii[(page_clear >> 4) & Key_mask];
+	       buf_mmi[5]=hex_to_ascii[page_clear & Key_mask];
+			//------------ -----//\\-----
+	   count=6;typ_pool=16;
+	break;/*установка страницы дисплея*/
+
+	//01.09.2020 YN -----\\//-----
+    case 2:buf_mmi[3]=Key_G;buf_mmi[4]=Key_S; 
+		   buf_mmi[5]=hex_to_ascii[(Horizont >> 4) & Key_mask];buf_mmi[6]=hex_to_ascii[Horizont & Key_mask];
+		   //buf_mmi[7]=Key_0;buf_mmi[8]=hex_to_ascii[Vertical];
+		   buf_mmi[7]=hex_to_ascii[((Vertical*8) >> 4) & Key_mask];buf_mmi[8]=hex_to_ascii[(Vertical*8) & Key_mask];
+	   //if (strlen(mmi_str)>15) {Display.evt = 4;step = 2;}
+	   if (count_smb>18) 
+	    {
+		    Display.evt = 4;
+		    step = 2;
+			for (i=0;i< 18;i++) buf_mmi[9+i]=mmi_str[i];
+	   		count=9+18;typ_pool=17;
+		}
+		else
+		{
+	   		for (i=0;i< count_smb;i++) buf_mmi[9+i]=mmi_str[i];
+	   		count=9+count_smb;typ_pool=17;
+		}
+		
+	   break;/*передача строки*/
+	//was:   
+    /*case 2:buf_mmi[3]=Key_T;buf_mmi[4]=hex_to_ascii[Vertical];
 	   buf_mmi[5]=hex_to_ascii[(Horizont >> 4) & Key_mask];
 	   buf_mmi[6]=hex_to_ascii[Horizont & Key_mask];
 	   for (i=0;i< count_smb;i++) buf_mmi[7+i]=mmi_str[i];
-	   count=7+count_smb;typ_pool=17;if (Display.suspend==0) Display.evt=0;break;/*ЇҐаҐ¤ з  бва®ЄЁ*/
-    case 3:buf_mmi[3]=Key_S;count=4;typ_pool=18;Display.evt=0;break;/*®Їа®б бва ­Ёжл*/
-    default:count=0;typ_pool=0;Display.evt=0;break;
+	   count=7+count_smb;typ_pool=17;if (Display.suspend==0) Display.evt=0;break;*//*передача строки*/
+	//------------- -----//\\-----
+
+	case 3:buf_mmi[3]=Key_S;count=4;typ_pool=18;break;/*опрос страницы*/
+    
+	//01.09.2020 YN -----\\//-----
+	case 4:buf_mmi[3]=Key_G;buf_mmi[4]=Key_S; 
+		   buf_mmi[5]=hex_to_ascii[((Horizont+18) >> 4) & Key_mask];buf_mmi[6]=hex_to_ascii[(Horizont+18) & Key_mask];
+		   //buf_mmi[7]=Key_0;buf_mmi[8]=hex_to_ascii[Vertical];
+		   buf_mmi[7]=hex_to_ascii[((Vertical*8) >> 4) & Key_mask];buf_mmi[8]=hex_to_ascii[(Vertical*8) & Key_mask];
+	   for (i=0;i< (count_smb-18);i++) buf_mmi[9+i]=mmi_str[i+18];
+	   count=9+(count_smb-18);typ_pool=17;step=0;
+	   if (page_str_pass == OK) 
+	   {
+		   Display.page=page_temporary;
+		   page_str_pass=0;
+		   switch (page_temporary)
+		   {
+		   case 16: Vertical=2; break;
+		   case 15: case 17: Horizont=10;Vertical=3; break;
+		   }
+		   memset(mmi_str, 0, sizeof(mmi_str));
+		}
+	   break;/*передача строки*/
+	//------------- -----//\\-----
+	
+	default:count=0;typ_pool=0;Display.evt=0;break;
   } if (count > 0)
   {
     CalcCheckSum(buf_mmi,count,cr);buf_mmi[count]=hex_to_ascii[cr[0]];
@@ -253,10 +368,10 @@ unsigned char SendToMMI (unsigned char typ_port)
     if (typ_port==3) ToComBufn_3(buf_mmi,count);
   } return typ_pool;
 }
-/********* Їа®ўҐаЄ  ­ ¦ в®© Є« ўЁиЁ  *******************************/
+/********* проверка нажатой клавиши  *******************************/
 unsigned char KeyFound (unsigned char buf_mmi[],unsigned char code_key1,
 			unsigned char code_key2,unsigned char count)
-{ /*ЁбЇ®«м§гҐвбп ¤«п Ї®ЁбЄ  Ї ал Є®¤®ў ­ ¦ в®© Є« ўЁиЁ*/
+{ /*используется для поиска пары кодов нажатой клавиши*/
   unsigned char i,j;j=0;
   for (i=4;i < count-1;)
   {
@@ -264,15 +379,15 @@ unsigned char KeyFound (unsigned char buf_mmi[],unsigned char code_key1,
     i=i+2;
   } if (j==0) return 0;else return 1;
 }
-/*********** ®зЁбвЄ  ЎгдҐа  ўлў®¤  ­  нЄа ­ *********************/
+/*********** очистка буфера вывода на экран *********************/
 void ClearBuffer (void)
 {
   unsigned char i;for (i=0;i< 30;i++) mmi_str[i]=Key_blank;
 }
-/************ ЇаҐ®Ўа §®ў ЁҐ ў бЁ¬ў®«м­го бва®Єг ******************/
+/************ преобразоваие в символьную строку ******************/
 void FloatToString (float val,unsigned char buf_str[],
 		   unsigned char offset)
-{ /*ЁбЇ®«м§гҐвбп ЇаЁ ўлў®¤Ґ Є®­дЁЈ.Ё«Ё  аеЁў­®Ј® §­ зҐ­Ё©*/
+{ /*используется при выводе конфиг.или архивного значений*/
   unsigned char i,buf[50],flag,j; double musor,value;
   flag=j=0; if (val < 0) flag=1; value=fabs(val);
   if (value < 100000)
@@ -287,9 +402,9 @@ void FloatToString (float val,unsigned char buf_str[],
   gcvt(value,10,buf); j=0;
   for (i=0;i<10;i++) if (buf[i] !=0) buf_str[i+offset]=buf[i]; else break;
 }
-/*********** ЇаҐ®Ўа §®ў ­ЁҐ Ў ©в  ў ¤ў  бЁ¬ў®«  ***********/
+/*********** преобразование байта в два символа ***********/
 void ByteToString (unsigned char val,unsigned char index,unsigned char typ)
-{ /*ЁбЇ®«м§гҐвбп ЇаЁ ўлў®¤Ґ  аеЁў­ле ¤ вл Ё ўаҐ¬Ґ­Ё*/
+{ /*используется при выводе архивных даты и времени*/
   unsigned char a,d,e,c,b;c=10;b=val;a=0;
   while (c>=1)
   {
@@ -305,7 +420,7 @@ void ByteToString (unsigned char val,unsigned char index,unsigned char typ)
 M:  b=b-d*c;c=c/10;a++;
   }
 }
-/************** ЇаҐ®Ўа §®ў ­ЁҐ жҐ«®Ј® ў бв®аЄг ******************/
+/************** преобразование целого в сторку ******************/
 unsigned char IntegerToString (unsigned long val)
 {
   unsigned long d;unsigned char buf[10],i,j;i=0;
@@ -315,27 +430,27 @@ unsigned char IntegerToString (unsigned long val)
     i++;val=d;
   } for (j=0;j<i;j++) mmi_str[j]=buf[i-j-1];return i;
 }
-/*********** ®в®Ўа ¦Ґ­ЁҐ ўўҐ¤с­­®Ј® §­ Є  *******************/
+/*********** отображение введённого знака *******************/
 void EnterKey (unsigned char code_symbol,unsigned char *index)
-{ /*ЁбЇ®«м§гҐвбп ЇаЁ ўў®¤Ґ Ї а®«п Ё«Ё Є®­дЁЈ.§­ зҐ­Ёп*/
+{ /*используется при вводе пароля или конфиг.значения*/
    if (*index < 8)
    {
      mmi_str[*index]=code_symbol;count_smb=8;
      mmi_str[*index+1]=Key_cursor;*index=*index+1;Display.evt=2;
    }
 }
-/*********** г¤ «Ґ­ЁҐ ўўҐ¤с­­®Ј® §­ Є  ***********************/
+/*********** удаление введённого знака ***********************/
 void DeleteKey (unsigned char *index)
-{ /*ЁбЇ®«м§гҐвбп ЇаЁ ўў®¤Ґ Ї а®«п Ё«Ё Є®­дЁЈ.§­ зҐ­Ёп*/
+{ /*используется при вводе пароля или конфиг.значения*/
    if (index > 0)
    {
      mmi_str[*index]=Key_blank;*index=*index-1;
      mmi_str[*index]=Key_cursor;count_smb=8;Display.evt=2;
    }
 }
-/** ўў®¤ жЁда®ў®Ј® §­ зҐ­Ёп ¤«п:Ї а®«п,Ё§¬Ґ­.Є®­дЁЈ, аеЁў®ў **/
+/** ввод цифрового значения для:пароля,измен.конфиг,архивов **/
 unsigned char EnterFigure (unsigned char buf_mmi[],unsigned char count)
-{ /*Є®¤л Є« ўЁи ®в "0" ¤® "9",ЇҐаҐў®¤ ў бЁ¬ў®« Ё жЁдаг*/
+{ /*коды клавиш от "0" до "9",перевод в символ и цифру*/
   const unsigned char dec_key[10]={Key_3,Key_C,Key_D,Key_F,Key_E,
 				   Key_8,Key_9,Key_B,Key_A,Key_1};
   unsigned char i,flag;/*num_key=16;*/flag=0;
@@ -345,21 +460,21 @@ unsigned char EnterFigure (unsigned char buf_mmi[],unsigned char count)
     { EnterKey(Key_0+i,&enter_ind);flag=1;break; }
   } return flag;
 }
-/********* ў®§ўа в ўўҐ¤с­­®© жЁдал  ******************************/
+/********* возврат введённой цифры  ******************************/
 unsigned char ConvertToDec (unsigned char symbol)
-{/*Є®¤"10"¬Ё­гб,Є®¤"11"§ Їпв п,ЇҐаҐў®¤ ¤ҐбпвЁз­®Ј® бЁ¬ў®«  ў жЁдаг*/
+{/*код"10"минус,код"11"запятая,перевод десятичного символа в цифру*/
   unsigned char dec;
   if ((symbol>47)&&(symbol<58)) dec=symbol-48;
   if (symbol==Key_minus) dec=10;if (symbol==Key_dot) dec=11;
   return dec;
 }
-/******* Ї®Є §лў Ґв Ї®§ЁжЁо ¤«п ўў®¤  бЁ¬ў®«  ******************/
+/******* показывает позицию для ввода символа ******************/
 void ViewCursor (unsigned char index)
 {
    if (index==0)
    { mmi_str[0]=Key_cursor;count_smb=8;Display.evt=2;}
 }
-/********* Ї®«гзҐ­ЁҐ ­®ўле ­ бва®ҐЄ  аеЁў  ЇаЁ звҐ­ЁЁ *************/
+/********* получение новых настроек архива при чтении *************/
 void GetArcReadPoint(int *pointer,unsigned *segment,unsigned char *page)
 {
   switch (*page)
@@ -380,18 +495,26 @@ void MoveCursorMMI (unsigned char buf_mmi[],unsigned char broad,
     {
       if (Cursor.mode==1) 
       {
-	Horizont=0; Vertical=Cursor.row+1; count_smb=1; ClearBuffer();
+		Horizont=0; Vertical=Cursor.row+1;
+		//01.09.2020 YN -----\\//-----
+		Vertical+=1;
+		//------------- -----//\\-----
+	 	count_smb=1; ClearBuffer();
         Cursor.enb=0; mmi_str[0]=0x3e; Display.evt=2; goto M2;
       } else
       {
-	Vertical=Cursor.old+1; count_smb=1; ClearBuffer(); Display.evt=2;
+		Vertical=Cursor.old+1; 
+		//01.09.2020 YN -----\\//-----
+		Vertical+=1;
+		//------------- -----//\\-----
+		count_smb=1; ClearBuffer(); Display.evt=2;
         Cursor.mode=1; Horizont=0; goto M2;
       }
-    } else if (KeyFound(buf_mmi,Key_0,Key_3,count)==1 && Cursor.row<(broad-1))
+    } else if (KeyFound(buf_mmi,Key_0,Key_3,count)==1 && Cursor.row<(broad-1)) //KEY 0
     {
       Cursor.old=Cursor.row; Cursor.row=Cursor.row+1; Cursor.enb=1;
       Cursor.mode=0; goto M1;
-    } else if (KeyFound(buf_mmi,Key_0,Key_F,count)==1 && Cursor.row>0)
+    } else if (KeyFound(buf_mmi,Key_0,Key_F,count)==1 && Cursor.row>0) //KEY 3
     {
       Cursor.old=Cursor.row; Cursor.row=Cursor.row-1; Cursor.enb=1;
       Cursor.mode=0; goto M1;
@@ -409,7 +532,7 @@ void ReturnToMenuMMI (void)
     num_page=Display.ret[Display.ind_ret-1]; Display.ind_ret--;
   } else num_page=10; SetDisplayPage(num_page);
 }
-/*********** Ё§¬Ґ­Ґ­ЁҐ Є®­дЁЈга жЁЁ Ё § ЇЁбм б®ЎлвЁп ***************/
+/*********** изменение конфигурации и запись события ***************/
 unsigned char ConfigParamChange (unsigned char value[],unsigned char size,
 				 unsigned char addr)
 {
@@ -422,7 +545,7 @@ unsigned char ConfigParamChange (unsigned char value[],unsigned char size,
       flag=1;
     } buf_evt[6+j]=mmi_val[j];buf_evt[10+j]=value[j];
   }
-  if (flag == 1) /*§ ЇЁбм б®ЎлвЁп ®в вҐа¬Ё­ « */
+  if (flag == 1) /*запись события от терминала*/
   {
     buf_evt[15]=Display.point+1+128;buf_evt[14]=Display.prm;WriteEvent(buf_evt,0);
     return Display.point+1;
@@ -433,14 +556,16 @@ unsigned char  MoveListMMI (unsigned char buf_mmi[],unsigned char count,
                   unsigned char size_max)
 {
   unsigned char flag;
-  if (KeyFound(buf_mmi,Key_0,Key_5,count)==1 && Display.num>=6)
+//01.09.2020 YN -----\\//-----        										was:6; now: >=12 -12 -12 +12;
+  if (KeyFound(buf_mmi,Key_0,Key_5,count)==1 && Display.num>=12) //F2
   {
-    Display.num=Display.num-6;Horizont=0;Display.row=0;Display.flag=1;flag=1;
+    Display.num=Display.num-12;Horizont=0;Display.row=0;Display.flag=1;flag=1;
     Cursor.size=0;Display.suspend=1;
   } else
-  if (KeyFound(buf_mmi,Key_0,Key_7,count)==1 && Display.num<(size_max-6))
+  if (KeyFound(buf_mmi,Key_0,Key_7,count)==1 && Display.num<(size_max-12)) //F3
   {
-    Display.num=Display.num+6;Horizont=0;Display.row=0;Display.flag=1;flag=1;
+    Display.num=Display.num+12;Horizont=0;Display.row=0;Display.flag=1;flag=1;
+//------------- -----//\\-----
     Cursor.size=0;Display.suspend=1;
   } else flag=0; return flag;
 }
@@ -449,18 +574,27 @@ void WriteMenuToMMI (unsigned char menu[], unsigned char size_menu)
 {
   unsigned char i,j,flag;
   ClearBuffer(); Vertical=Display.row+1;
+  //01.09.2020 YN -----\\//-----
+  Vertical += 1;
+  //------------- -----//\\-----
   if ((Display.num+Display.row)<size_menu)
   {
     j=strlen(menu); for (i=0;i<j;i++) mmi_str[i]=menu[i];
     Cursor.size++;
-  } count_smb=28;Horizont=2;Display.evt=2;Display.row++;
-  if (Display.row > 5)
+  } 
+  count_smb=28;
+  Horizont=2;Display.evt=2;Display.row++;
+//01.09.2020 YN -----\\//-----
+  if (size_menu > 11) count_menu=11;
+  else count_menu=size_menu;
+  if (Display.row > count_menu) //was:5 колличество строк в меню
+//------------- -----//\\-----
   {
     Display.row=0; Display.flag=0; Cursor.mode=0; Cursor.old=Cursor.row;
     Cursor.row=0; Cursor.enb=1;Display.suspend=0;
   }
 }
-/******* ®Ўа Ў®вЄ  ®вўҐв  ®в MMI(вҐа¬Ё­ « ®ЇҐа в®а ) *****/
+/******* обработка ответа от MMI(терминал оператора) *****/
 void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 		  double dyn_prm)
 {
@@ -469,21 +603,21 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
   switch (Display.page)
   {
     case 0: case 1: case 2: case 3: case 4: case 5:
-    case 6: case 7: case 8: case 9:/*§ Ј®«®ў®Є*/
+    case 6: case 7: case 8: case 9:/*заголовок*/
       if (KeyFound (buf_mmi,Key_0,Key_6,count)==1) /*"D"*/
       GoToMenuMMI(10); else
-      { /* ўЁ§г «Ё§ жЁп Є®­ва®«м­®© бг¬¬л */
+      { /* визуализация контрольной суммы */
 	ClearBuffer(); Display.suspend=0; k=0;
-        for (i=0;i<3;i++) /*ўлў®¤Ёв ¤ вг*/
+        for (i=0;i<3;i++) /*выводит дату*/
         { 
           ByteToString(ReadNVRAM(2-i),k,0);if (i != 2) mmi_str[k+2]=Key_dot;k=k+3;
 	} k=9;count_smb=18;
-	for (i=0;i<3;i++) /*ўлў®¤Ёв ўаҐ¬п*/
+	for (i=0;i<3;i++) /*выводит время*/
 	{ 
           ByteToString(ReadNVRAM(3+i),k,0);if (i != 2) mmi_str[k+2]=0x3a;k=k+3;
 	} Horizont=5;Vertical=4;Display.evt=2;
       } break;
-    case 10:/*®б­®ў­®Ґ ¬Ґ­о*/
+    case 10:/*основное меню*/
        if (Display.flag==1)
        WriteMenuToMMI(str_menu[Display.num+Display.row],11); else
        MoveCursorMMI(buf_mmi,Cursor.size,count);
@@ -508,7 +642,7 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	 case 10:Display.point=60; Display.write=0;GoToMenuMMI(20);break;
        }
 	break;
-    case 11:/*¬Ґ­о ўлЎ®а  в®зЄЁ ¤«п Їа®б¬®ва */
+    case 11:/*меню выбора точки для просмотра*/
       if (Display.flag==1) WriteMenuToMMI(str_menu1[Display.num+Display.row],Max_pnt); else
       MoveCursorMMI(buf_mmi,Cursor.size,count);
       if (KeyFound (buf_mmi,Key_0,Key_6,count)==1) ReturnToMenuMMI(); else
@@ -529,8 +663,11 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	if (MoveListMMI (buf_mmi,count,size_max)==1) mmi_pass=0;else
         {
 	  ClearBuffer();Vertical=Display.row+1;
-	  if (mmi_pass==0) /*б¬Ґ­  бЇЁбЄ */
-	  {  /*ўлў®¤ Ё¬Ґ­Ё Ї а ¬Ґва  §  ®¤Ё­ Їа®е®¤*/
+	  //01.09.2020 YN -----\\//-----
+	  Vertical+=1;
+	  //------------- -----//\\-----
+	  if (mmi_pass==0) /*смена списка*/
+	  {  /*вывод имени параметра за один проход*/
 	    if ((Display.num+Display.row)<size_max && coord[0]<Max_dynam_all)
 	    {
 	      j=strlen(dyn_all[coord[0]]);
@@ -548,11 +685,17 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
               if (coord[4]==1) ByteToString(coord[5],mmi_size,1);
 	    } count_smb=22;Horizont=0;mmi_pass=1;Display.evt=2;
 	  } else
-	  { /*ўлў®¤ §­ зҐ­Ёп Ї а ¬Ґва */
+	  { /*вывод значения параметра*/
 	      if((Display.num+Display.row)<size_max)
 		FloatToString(dyn_prm,mmi_str,0);
 	      count_smb=8;Horizont=22;Display.row++;
-              if (Display.row > 5) {Display.row=Display.flag=0;Display.suspend=0;}	
+		  //01.09.2020 YN -----\\//-----
+	      if (Display.row > 11) //was: >5 колличество строк в меню
+		  //------------- -----//\\----- 
+			{
+				  Display.row=Display.flag=0;
+				  Display.suspend=0;
+			}	
               if (Display.flag==1) mmi_pass=0;Display.evt=2;
 	  }
 	} break;
@@ -735,7 +878,10 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
       { 
         if (Display.flag==1) 
         {
-          ClearBuffer();Vertical=Display.row+1;
+          	ClearBuffer();Vertical=Display.row+1;
+			//01.09.2020 YN -----\\//-----
+	  		Vertical+=1;
+	  		//------------- -----//\\-----
           if ((Display.num+Display.row)<Display.size) 
 	  {
 	    j=strlen(conf_all[coord[0]]);
@@ -743,10 +889,12 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	    if (coord[1]<=40) ByteToString(coord[1]+1,j,1);
             Cursor.size++;
           } count_smb=27;Horizont=2;Display.evt=2;Display.row++;
-          if (Display.row > 5)
+			//01.09.2020 YN -----\\//-----
+      		if (Display.row > 11)  //was: >5 колличество точек меню
+			//------------- -----//\\-----
           {
             Display.row=0;Display.flag=0;Cursor.mode=0;Cursor.old=Cursor.row;
-	    Cursor.row=0;Cursor.enb=1;Display.suspend=0;
+	    Cursor.row=0;Cursor.enb=1;//Display.suspend=0;
 	  }
 	} else MoveCursorMMI(buf_mmi,Cursor.size,count);
         if (KeyFound (buf_mmi,Key_0,Key_6,count)==1)
@@ -758,18 +906,21 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	  Display.old=Display.num; SetDisplayPage(16);
         }
       } break;
-    case 21:/*Їа®б¬®ва ¤® 6 Їг­Єв®ў ўлЎ®а  §­ зҐ­Ёп*/
+    case 21:/*просмотр до 6 пунктов выбора значения*/
       if (KeyFound (buf_mmi,Key_0,Key_6,count)==1)
       {
 	mmi_pass=Display.write=enter_ind=Horizont=0;
 	Display.num=Display.old;
 	Display.flag=1; Vertical=2; SetDisplayPage(16);
-      } else/*"ESC"®в¬Ґ­  Ё§¬Ґ­Ґ­Ёп Ї а ¬Ґва */
+      } else/*"ESC"отмена изменения параметра*/
       {
 	MoveListMMI (buf_mmi,count,mmi_num_sel);
 	ClearBuffer(); Vertical=Display.row+1;
-	if (Display.flag==1) /*б¬Ґ­  бЇЁбЄ */
-	{ /*ўлў®¤ Їг­Єв  ¬Ґ­о ўлЎ®а §­ зҐ­Ёп §  ®¤Ё­ Їа®е®¤*/
+		//01.09.2020 YN -----\\//-----
+		Vertical+=1;
+		//------------- -----//\\-----
+	if (Display.flag==1) /*смена списка*/
+	{ /*вывод пункта меню выбор значения за один проход*/
 	  if ((Display.num+Display.row)<mmi_num_sel)
 	  {
 	    j=strlen(name_sel_all[mmi_sel[Display.num+Display.row]]);
@@ -777,10 +928,12 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	    mmi_str[i+3]=name_sel_all[mmi_sel[Display.num+Display.row]][i];
 	    Cursor.size++;
 	  } count_smb=30; Horizont=0; Display.evt=2; Display.row++;
-	  if (Display.row > 5)
+	//01.09.2020 YN -----\\//-----
+      if (Display.row > 11)  //was: >5 колличество точек меню
+	//------------- -----//\\-----
 	  {
 	    Display.row=Display.flag=0;Cursor.mode=0;Cursor.old=Cursor.row;
-	    Cursor.row=0; Cursor.enb=1; Display.suspend=0;
+	    Cursor.row=0; Cursor.enb=1; //Display.suspend=0;
 	  }
 	} else MoveCursorMMI(buf_mmi,Cursor.size,count);
 	if (KeyFound (buf_mmi,Key_0,Key_2,count)==1)
@@ -790,12 +943,15 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	  Vertical=2; SetDisplayPage(16);
 	}
       } break;
-    case 13:/*Їа®б¬®ва ¤® 6 Їг­Єв®ў ¬Ґ­о  ае в®зҐЄ*/
+    case 13:/*просмотр до 6 пунктов меню арх точек*/
       if (MoveListMMI (buf_mmi,count,size_max)==0)
       {
 	if (Display.flag==1)
 	{
 	  ClearBuffer();Vertical=Display.row+1;
+		  	//01.09.2020 YN -----\\//-----
+	  		Vertical+=1;
+	  		//------------- -----//\\-----
           if ((Display.num+Display.row)<size_max)
 	  { 
             if (coord[0]<Max_conf_all) for (i=0;i<5;i++)
@@ -815,7 +971,9 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 		mmi_str[i+17]=name_mmi_exp[coord[5]][i-j];
 	      } else mmi_val[Display.row]=128; Cursor.size++;
 	   } count_smb=30;Horizont=0;Display.evt=2;Display.row++;
-	  if (Display.row > 5)
+	   	//01.09.2020 YN -----\\//-----
+          if (Display.row > 11)  //was: >5 колличество точек меню
+		//------------- -----//\\----- 
 	  {
 	    Display.row=Display.flag=0;Cursor.mode=0;Cursor.old=Cursor.row;
 	    Cursor.row=0;Cursor.enb=1;Display.suspend=0;
@@ -841,6 +999,9 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	  M:if (Display.flag == 1)
 	  {
 	    ClearBuffer();Vertical=Display.row+1;
+			//01.09.2020 YN -----\\//-----
+	  		Vertical+=1;
+	  		//------------- -----//\\-----
 	    if (mmi_arc > 0)
 	    {
 	      mmi_arc--;mmi_adr=mmi_arc*Size_str;
@@ -861,7 +1022,10 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 		FloatToString(value,mmi_str,k);
 	      } else goto M;
 	    } count_smb=24;Display.row++;Display.evt=2;
-	    if (Display.row > 5) Display.flag=0;Horizont=0;
+		//01.09.2020 YN -----\\//-----
+	    if (Display.row > 11) //was: >5 колличество точек меню 
+		//------------- -----//\\-----
+		Display.flag=0;Horizont=0;
 	  }
 	}
       } break;
@@ -874,5 +1038,96 @@ void ReadFromMMI (unsigned char buf_mmi[],unsigned char count,
 	Display.point=Cursor.row+Display.prm; Horizont=0; Display.row=0; Display.num=0; Display.flag=1;
 	mmi_pass=0; SaveOldPageMMI(); SetDisplayPage(14);
       } break;
+//01.05.2020 YN -----\\//-----
+	case 40:
+		//page_str_pass=OK;
+		switch (page_temporary)
+			{
+		   		case 0: case 1: case 2: case 3: case 4: case 5:
+		   		case 6: case 7: case 8: case 9: //"   Вычислитель расхода ВРФ    ", //26+27+25
+					if(page_str_pass==0) page_screen(0,0,26,1);
+					else if(page_str_pass==1) page_screen(0,1,27,2);
+					else page_screen(0,15,25,OK);
+			    break;
+///////////////////////////////////////////////////////////////
+		   		case 10: 						//"         Главное меню         ", //1+18
+					if(page_str_pass==0) page_screen(0,0,1,1);
+					else page_screen(0,15,18,OK);
+				break;
+//////////////////////////////////////////////////////////////
+				case 11: case 12:				//"    Меню выбора точки учета   ", //2+18
+					if(page_str_pass==0) page_screen(0,0,2,1);
+					else page_screen(0,15,18,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 13:						//"  Меню выбора архивной точки  ", //3+18
+					if(page_str_pass==0) page_screen(0,0,3,1);
+					else page_screen(0,15,18,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 14:						//"     Переменные процесса      ", //4+19
+					if(page_str_pass==0) page_screen(0,0,4,1);
+					else page_screen(0,15,19,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 15:						//"        Ввод значения         ", //5+21
+					if(page_str_pass==0) page_screen(0,0,5,1);
+					else page_screen(0,15,21,OK);
+				break;
+/////////////////////////////////////////////////////////////				 
+				case 16:						//" Изменение конфиг. параметра  ", //6+20
+					if(page_str_pass==0) page_screen(0,0,6,1);
+					else page_screen(0,15,20,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 17:						//"         Ввод пароля          ", //7+21
+					if(page_str_pass==0) page_screen(0,0,7,1);
+					else page_screen(0,15,21,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 18:						//"     Неправильный пароль      ", //8+22
+					if(page_str_pass==0) page_screen(0,6,8,1);
+					else page_screen(0,15,22,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 19:						//"   Просмотр архивной точки    ", //9+19
+					if(page_str_pass==0) page_screen(0,0,9,1);
+					else page_screen(0,15,19,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 20: case 23:						//"        Меню настроек         ", //10+18
+					if(page_str_pass==0) page_screen(0,0,10,1);
+					else page_screen(0,15,18,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 21:						//"       Выбор значения         ", //11+18
+					if(page_str_pass==0) page_screen(0,0,11,1);
+					else page_screen(0,15,18,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 22:						//"Изменение параметра невозможно", //12+22
+					if(page_str_pass==0) page_screen(0,6,12,1);
+					else page_screen(0,15,22,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 25:						//"Выполн.настр-ка нуля массомера", //13
+					if(page_str_pass==0) page_screen(0,6,13,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 26:						//" Внимание! Перекройте расход  ", //14+15+16+23
+					if(page_str_pass==0) page_screen(0,5,14,1);
+					else if(page_str_pass==1) page_screen(0,6,15,2);
+					else if(page_str_pass==2) page_screen(0,7,16,3);
+					else if(page_str_pass==3) page_screen(0,15,23,OK);
+				break;
+/////////////////////////////////////////////////////////////
+				case 27:						//"     Меню выбора прибора      ", //17+18
+					if(page_str_pass==0) page_screen(0,0,17,1);
+					else page_screen(0,15,18,OK);
+				break;
+		   }
+		Display.suspend=0;Display.evt=2;count_smb=30;
+	break;
+	//------------- -----//\\-----
     }
 }

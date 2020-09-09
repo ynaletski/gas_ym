@@ -102,7 +102,7 @@ void AverageExpandParams (void);
 void ReadFromArchive (unsigned char bufer[]);
 void ReadFromMinArch (unsigned char bufer[]);
 void ReadFromEvents (unsigned char buf_com[]);
-void ClearDisplay ();
+/*void ClearDisplay ();*///nm
 void ViewError ();
 void ReadConfigModbus (unsigned char buf_com[]);
 void WriteConfigModbus(unsigned char buf_com[]);
@@ -128,7 +128,7 @@ unsigned char VerifySum (unsigned char buf[],unsigned char count);
 /*unsigned char StringToPanel (float val,unsigned char buf_str[],
 		    unsigned char attrib);
 void SendToPanel (float val,unsigned char attrib);*/
-void ReadPageMMI (unsigned char buf_com[]);
+/*void ReadPageMMI (unsigned char buf_com[]);*///nm
 /*************************/
 void main (void)
 {
@@ -137,8 +137,8 @@ void main (void)
   InitLib();X607_Init();
   /*InstallCom_3(9600L,8,0,1);*/
   /*InstallCom_1(9600L,8,0,1);InstallCom_2(9600L,8,0,1);*/
-  ClearDisplay();Enable5DigitLed();
-  Set5DigitLedIntensity(1);TimerOpen();/*InstallUserTimer(TickTimer);*/
+  /*ClearDisplay();Enable5DigitLed();Set5DigitLedIntensity(1);*///nm
+  TimerOpen();/*InstallUserTimer(TickTimer);*/
   for (i=0;i<Max_pnt;i++) RestoreBasicParameters(i);
   InitializeMain(); ReinstallPort(1);ReinstallPort(2);ReinstallPort(3);
   if (Device.set_com==1) ReinstallPort(4);else
@@ -198,12 +198,17 @@ void main (void)
       if (VerifySum(Port[0].buf,Port[0].index-2)==1)
       {
 	if (icp_pool < 14) ReadFromICP(Prt.nmb_icp);else
+  //01.09.2020 YN -----\\//----
+  if (Port[0].buf[0]==0x21 &&(icp_pool==16 || icp_pool==17))
+	  {if (step==0) {Display.evt=0;}} //was: Display.evt=0;
+  else
+  //------------- -----//\\-----
 	if (icp_pool == 15 || Display.suspend==1)
 	{ /*обработка ответа от MMI подключенного к СОМ1*/
 	  ViewParamToMMI(&param);
 	  ReadFromMMI(Port[0].buf,Port[0].index,param);
-	} else if (icp_pool == 18) ReadPageMMI(Port[0].buf);
-	if (mmi_flg_ver==1 && Display.evt==0) {Display.evt=3;mmi_flg_ver=0;}
+	} /*else if (icp_pool == 18) ReadPageMMI(Port[0].buf);
+	if (mmi_flg_ver==1 && Display.evt==0) {Display.evt=3;mmi_flg_ver=0;}*///nm
       } icp_pool=Port[0].index=0;
     }
      if (flg_arc_clr == 1) { ClearArchive();flg_arc_clr=0;}
@@ -1455,17 +1460,17 @@ void ReadFromEvents (unsigned char buf_com[])
     buf_com[9]=adr_evt-buf_com[8]*256;
 }
 /*********** очистка дисплея-индикатора ошибок *******************/
-void ClearDisplay ()
+/*void ClearDisplay ()
 {
   unsigned char i;
   for (i=1;i<6;i++) Show5DigitLedSeg(i,0x0);
-}
+}*///nm
 /*********** визуализация ошибок *********************************/
 void ViewError ()
 {
-   const unsigned char str[3]={0x4f,0x5,0x5};
+   /*const unsigned char str[3]={0x4f,0x5,0x5};*///nm
    unsigned char i,buf[16];
-   if (ind_err>=Max_error) {ind_err=0;ClearDisplay();}/*визуализация ошибки*/
+   if (ind_err>=Max_error) {ind_err=0;}/*ClearDisplay();*///nm}/*визуализация ошибки*/
  M: if (Err[ind_err] < 10)
     {
       if (flg_err[ind_err] != 0)
@@ -1479,9 +1484,13 @@ void ViewError ()
       {
 	flg_err[ind_err]=1;FormateEvent(buf);buf[10]=1;buf[13]=ind_err+1;
 	WriteEvent(buf,2);/*запись об установке нештатной ситуации*/
-      } for (i=0;i<3;i++) Show5DigitLedSeg(i+1,str[i]);
-      i=(ind_err+1)/10;Show5DigitLed(4,i);i=ind_err+1-i*10;
-      Show5DigitLed(5,i);ind_err++;
+      } 
+      /*for (i=0;i<3;i++) Show5DigitLedSeg(i+1,str[i]);*///nm
+      i=(ind_err+1)/10;
+      /*Show5DigitLed(4,i);*///nm
+      i=ind_err+1-i*10;
+      /*Show5DigitLed(5,i);*///nm
+      ind_err++;
     }
 }
 /************ возвращает конфигур.страницу Modbus ****************/
@@ -2026,6 +2035,13 @@ void ViewParamToMMI (double *value)
     }  else if (Display.point==7)
     {
       size_max=Max_main;ConfigSetToMMI(conf_main[Display.prm],main_select);
+    } else if (Display.point==6)
+    {
+      size_max=Max_icp_prm;for (i=0;i<7;i++) coord[i]=conf_icp[Display.prm][i];
+    } else if (Display.point==60)
+    {
+      size_max=5; coord[0]=90+Display.prm; coord[2]=Display.prm; coord[3]=60;
+      coord[4]=128; coord[5]=0; coord[6]=1;
     }
   } else if (Display.page<10 && Display.flag==0)
   { ConvLongToBynare(checksum,coord);} else if (Display.page==17)
@@ -2069,16 +2085,23 @@ void ViewParamToMMI (double *value)
       Display.size=Max_conf;
       if ((Display.num+Display.row)<Max_conf) 
       {
-	coord[0]=conf_basic[Display.num+Display.row][0];
-	coord[1]=conf_basic[Display.num+Display.row][4];
+	      coord[0]=conf_basic[Display.num+Display.row][0];
+	      coord[1]=conf_basic[Display.num+Display.row][4];
       }
     } else if (Display.point==6)
     {
       Display.size=Max_icp_prm;
       if ((Display.num+Display.row)<Max_icp_prm) 
       {
-	coord[0]=conf_icp[Display.num+Display.row][0];
-	coord[1]=conf_icp[Display.num+Display.row][4];
+	      coord[0]=conf_icp[Display.num+Display.row][0];
+	      coord[1]=conf_icp[Display.num+Display.row][4];
+      }
+    } else if (Display.point==60) 
+    {
+      Display.size=5;
+      if ((Display.num+Display.row)<Display.size) 
+      {
+	      coord[0]=90+Display.row; coord[1]=128;
       }
     }
   }
@@ -2152,10 +2175,10 @@ unsigned char VerifySum (unsigned char buf[],unsigned char count)
   count=count+3;ToComBufn(3,bufs,count);
 }
 /***************** читает номер страницы индикатора ********/
-void ReadPageMMI (unsigned char buf_com[])
+/*void ReadPageMMI (unsigned char buf_com[])
 {
   unsigned char number;
   number=ascii_to_hex(buf_com[3])*16+
 			     ascii_to_hex(buf_com[4]);
   if (number != Display.page) SetDisplayPage(Typ_task);
-}
+}*///nm
