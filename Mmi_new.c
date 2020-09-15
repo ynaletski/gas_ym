@@ -47,10 +47,10 @@ unsigned char count_menu=0;
 #define Key_modbus    0xa
 #define Key_mask      0xf
 #define Key_minus    0x2d
-#define Key_dies     0x23
+#define Key_dies     0x23 //#
 #define Key_cursor   0x5f
 #define Key_usa      0x24 //$
-#define Key_adr      0x40
+#define Key_adr      0x40 //@
 
 #define Len_name       16
 #define Max_mmi_main   11

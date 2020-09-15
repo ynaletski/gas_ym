@@ -39,8 +39,8 @@ struct counters            Counters;
 const unsigned char set_ta[8] = {3,5,7,10,15,20,30,50};
 const unsigned char err_pnt[6] = {9,19,29,39,49,59};
 const unsigned char lnt_mvs[4] = {25,105,6,6};/*две последние цифры номера мод.*/
-const unsigned char name_icp[6][2] = {{49,50},{49,55},{50,50},{50,52},{54,48},{56,48}};
-const unsigned char mvs_rd[5]={3,0,68,0,7};/* команда короткое чтение */
+const unsigned char name_icp[6][2] = {{49,50},{49,55},{50,50},{50,52},{52,52},{56,48}};  //nm was:{49,50} - 12 ,{49,55} - 17 ,{50,50} - 22 ,{50,52} - 24 ,{54,48} - 60 ,{56,48} - 80
+const unsigned char mvs_rd[5]={3,0,68,0,7};/* команда короткое чтение */                                                                            //now:{52,52} - 44
 const unsigned char mvs_rdl[5]={3,0,64,0,29};/* команда длинное чтение */
 const unsigned char mvs_wr[6]={16,0,64,0,2,12};/* команда запись адреса, тега */
 const unsigned char mvs_cbr[6]={16,0,91,0,3,6};/* команды калибровки */
@@ -993,24 +993,26 @@ unsigned char SendToICP (unsigned char number)
       case 1:bufs[0]=Key_usa;bufs[3]=Key_2;count=4;
 	     pool=6;if ((status>0 && status<3) || status>3) evt=2;else
 	     if (status == 3) evt=8; if (status == 6) evt=12;break;/*запрос статуса модуля "$xx2"*/
-      case 2:if (status==1 || status==2)
+      case 2:if (status==1 || status==2) /*чтение 7017 #xx */
 	     {bufs[0]=Key_dies;count=3;pool=7;} else
-	     if (status==3 || status==4)
+	     if (status==3 || status==4) /*установка 7024 по номеру канала*/
 	     {
 	       bufs[0]=Key_dies;pool=7;
 	       bufs[3]=hex_to_ascii[chanel & Key_mask];
 	       /* преобразование веществ числа в строку */
 	       if (status==3) {FloatToText(value,bufs,4);count=10;}
 	       if (status==4)
-	       {bufs[4]=0x2b;FloatToText(value,bufs,5);count=11;} chanel++;
+	       {bufs[4]=0x2b;FloatToText(value,bufs,5);count=11;} chanel++;/*7024 out value*/
 	       if ((status==3 && chanel>1)||(status==4 && chanel>3))
 		  chanel=0;
-	     } else if (status==5) {bufs[0]=Key_adr;count=3;pool=7;evt=3;}
-	     break;/*запрос блока данных модуля "#xx" или аналог выход*/
+	     } else if (status==5) {bufs[0]=Key_adr;count=3;pool=7;evt=3;}/*запрос блока данных модуля 7060 di-do "@xx" */
+	     break;
       case 3:if (status==5)
-	     {
-	       bufs[0]=Key_adr;count=4;evt=2;
-	       bufs[3]=hex_to_ascii[(out) & Key_mask];
+	     {  /*установка дискретных выходов 7060* @xxF !!!!!!!!!!*/
+	       bufs[0]=Key_adr;count=5;evt=2; //nm was count=4; for 7060
+	       //bufs[3]=hex_to_ascii[(out) & Key_mask]; //nm for 7060 раскоментировать а две строчки ниже закоментировать
+         bufs[4]=hex_to_ascii[(out) & Key_mask]; //nm added this string
+         bufs[3]=0x30; //nm 0 added this string
 	     } else
 	     {
 	       bufs[0]=0x25;count=11;evt=1;/*"%xx"*/
@@ -1022,7 +1024,7 @@ unsigned char SendToICP (unsigned char number)
 	       bufs[9]=hex_to_ascii[(icp_wr[2] >> 4) & Key_mask];
 	       bufs[10]=hex_to_ascii[icp_wr[2] & Key_mask];/*новый формат*/
 	     } pool=8;break;/*установка статуса*/
-      case 4:if (status<3) /*разр-запрет калибровки "~xxE"*/
+      case 4:if (status<3) /*разр-запрет калибровки "~xxE 7017"*/
 	     {
 	       bufs[0]=0x7e;bufs[3]=Key_E;count=5;pool=14;
 	       bufs[4]=hex_to_ascii[icp_wr[0] & Key_mask];evt=2;
@@ -1165,7 +1167,7 @@ void ReadFromICP (unsigned char number)
 	     case 4:for (i=0;i<3;i++) Dio[0].status[i]=status[i];break;
 	     case 5:for (i=0;i<3;i++) Dio[1].status[i]=status[i];break;
 	     case 6:for (i=0;i<3;i++) Counters.status[i]=status[i];break;
-	   } break;/*чтение статуса модуля ICP*/
+	   } break;/*чтение статуса модуля ICP 7060*/
     case 7:if (Port[0].buf[0]==0x3e)
 	   {
 	     if (status[3]==1 || status[3]==2)
@@ -1184,7 +1186,7 @@ void ReadFromICP (unsigned char number)
 	       }
 	     } else if (status[3]==5)
 	     {
-	       inp=ascii_to_hex(Port[0].buf[3])*16+ascii_to_hex(Port[0].buf[4]);
+	       inp=ascii_to_hex(Port[0].buf[3])*16+ascii_to_hex(Port[0].buf[4]);  //!!!!!!!!!!!!!!поолучение данных о входах и выходах 7060
 	       stat_out=ascii_to_hex(Port[0].buf[1])*16+
 				     ascii_to_hex(Port[0].buf[2]);
 	       switch (Device.typ_icp[number])
@@ -1228,7 +1230,7 @@ void ReadFromICP (unsigned char number)
       case 11:Counters.start[Counters.chan]=ascii_to_hex(Port[0].buf[3]);
 	      Counters.chan++;
 	      if (Counters.chan >1) {Counters.chan=0;Counters.evt=13;}break;/*чтение статуса счётчика*/
-      case 12:if (Port[0].buf[0]==0x3e)
+      case 12:if (Port[0].buf[0]==0x3e) /*0x3e ">" */
 	     { /*здесь должно быть вычисление зн счётчика*/
 
 	       Counters.counter[Counters.chan]=(ascii_to_hex(Port[0].buf[1])*4096.0+
