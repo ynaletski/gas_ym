@@ -1012,7 +1012,7 @@ unsigned char SendToICP (unsigned char number)
 	       bufs[0]=Key_adr;count=5;evt=2; //nm was count=4; for 7060
 	       //bufs[3]=hex_to_ascii[(out) & Key_mask]; //nm for 7060 раскоментировать а две строчки ниже закоментировать
          bufs[4]=hex_to_ascii[(out) & Key_mask]; //nm added this string
-         bufs[3]=0x30; //nm 0 added this string
+         bufs[3]=0x30; //nm '0' added this string
 	     } else
 	     {
 	       bufs[0]=0x25;count=11;evt=1;/*"%xx"*/
