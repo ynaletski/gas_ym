@@ -39,7 +39,7 @@ struct counters            Counters;
 const unsigned char set_ta[8] = {3,5,7,10,15,20,30,50};
 const unsigned char err_pnt[6] = {9,19,29,39,49,59};
 const unsigned char lnt_mvs[4] = {25,105,6,6};/*две последние цифры номера мод.*/
-const unsigned char name_icp[6][2] = {{49,50},{49,55},{50,50},{50,52},{52,52},{56,48}};  //nm was:{49,50} - 12 ,{49,55} - 17 ,{50,50} - 22 ,{50,52} - 24 ,{54,48} - 60 ,{56,48} - 80
+const unsigned char name_icp[6][2] = {{49,50},{49,55},{50,50},{50,52},{54,48},{56,48}};  //nm was:{49,50} - 12 ,{49,55} - 17 ,{50,50} - 22 ,{50,52} - 24 ,{54,48} - 60 ,{56,48} - 80
 const unsigned char mvs_rd[5]={3,0,68,0,7};/* команда короткое чтение */                                                                            //now:{52,52} - 44
 const unsigned char mvs_rdl[5]={3,0,64,0,29};/* команда длинное чтение */
 const unsigned char mvs_wr[6]={16,0,64,0,2,12};/* команда запись адреса, тега */
@@ -1008,11 +1008,11 @@ unsigned char SendToICP (unsigned char number)
 	     } else if (status==5) {bufs[0]=Key_adr;count=3;pool=7;evt=3;}/*запрос блока данных модуля 7060 di-do "@xx" */
 	     break;
       case 3:if (status==5)
-	     {  /*установка дискретных выходов 7060* @xxF !!!!!!!!!!*/
-	       bufs[0]=Key_adr;count=5;evt=2; //nm was count=4; for 7060
-	       //bufs[3]=hex_to_ascii[(out) & Key_mask]; //nm for 7060 раскоментировать а две строчки ниже закоментировать
-         bufs[4]=hex_to_ascii[(out) & Key_mask]; //nm added this string
-         bufs[3]=0x30; //nm '0' added this string
+	     {  /*установка дискретных выходов 7060* @xxF !!!!!!!!!!  7044 @xxFF */
+	       bufs[0]=Key_adr;count=4;evt=2; //nm was (count=4; for 7060) (count=5; for 7044)
+	       bufs[3]=hex_to_ascii[(out) & Key_mask]; //nm for 7060 раскоментировать а две строчки ниже закоментировать
+         //bufs[4]=hex_to_ascii[(out) & Key_mask]; //nm added this string for 7044
+         //bufs[3]=0x30; //nm '0' added this string for 7044
 	     } else
 	     {
 	       bufs[0]=0x25;count=11;evt=1;/*"%xx"*/
